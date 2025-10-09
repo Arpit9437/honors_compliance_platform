@@ -10,8 +10,10 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@ai-sdk/groq": "^2.0.22",
     "@google/genai": "^1.21.0",
     "@huggingface/inference": "^4.9.0",
+    "ai": "^5.0.59",
     "axios": "^1.12.2",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
