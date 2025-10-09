@@ -10,6 +10,14 @@ const rssFeeds = [
     url: 'https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=3',
     sourceName: 'Press Information Bureau',
   },
+  {
+    url: 'https://services.india.gov.in/feed/rss?cat_id=7&ln=en',
+    sourceName: 'Press Information Bureau',
+  },
+  {
+    url: 'https://services.india.gov.in/feed/rss?cat_id=16&ln=en',
+    sourceName: 'Press Information Bureau',
+  }
 ];
 
 async function generateArticle(item) {
