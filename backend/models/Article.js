@@ -7,7 +7,8 @@ const articleSchema = new mongoose.Schema({
   pubDate: Date,
   articleContent: String,
   generatedAt: Date,
-  source: String 
+  source: String,
+  embedding: { type: [Number], default: [] }
 });
 
 const Article = mongoose.model('Article', articleSchema);

@@ -12,7 +12,9 @@
   "dependencies": {
     "@ai-sdk/groq": "^2.0.22",
     "@google/genai": "^1.21.0",
+    "@google/generative-ai": "^0.24.1",
     "@huggingface/inference": "^4.9.0",
+    "@qdrant/js-client-rest": "^1.15.1",
     "ai": "^5.0.59",
     "axios": "^1.12.2",
     "bcryptjs": "^3.0.2",
@@ -23,6 +25,7 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.18.2",
     "node-cron": "^4.2.1",
+    "node-fetch": "^3.3.2",
     "node.js": "^0.0.1-security",
     "rss-parser": "^3.13.0"
   }

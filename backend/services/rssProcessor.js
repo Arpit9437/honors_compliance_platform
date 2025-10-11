@@ -2,21 +2,22 @@ const Parser = require('rss-parser');
 const { groq } = require('@ai-sdk/groq');
 const { generateText } = require('ai');
 const Article = require('../models/Article');
+const { embedText } = require('./embeddings');
 
 const parser = new Parser();
 
 const rssFeeds = [
   {
     url: 'https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=3',
-    sourceName: 'Press Information Bureau',
+    sourceName: 'Press Information Bureau'
   },
   {
     url: 'https://services.india.gov.in/feed/rss?cat_id=7&ln=en',
-    sourceName: 'Press Information Bureau',
+    sourceName: 'India.gov.in'
   },
   {
     url: 'https://services.india.gov.in/feed/rss?cat_id=16&ln=en',
-    sourceName: 'Press Information Bureau',
+    sourceName: 'India.gov.in'
   }
 ];
 
@@ -51,8 +52,6 @@ Rules:
       temperature: 0.6,
       maxTokens: 900
     });
-
-    // Direct JSON parse with no extra utilities
     return JSON.parse(text);
   } catch (err) {
     console.error('Groq generation/parse error:', err?.message || err);
@@ -81,6 +80,8 @@ async function processAllFeeds() {
           continue;
         }
 
+        const embedding = await embedText(`${data.title}\n\n${data.content}`);
+
         const newArticle = new Article({
           feedId: uniqueId,
           title: data.title,
@@ -88,11 +89,12 @@ async function processAllFeeds() {
           pubDate: item.pubDate ? new Date(item.pubDate) : new Date(),
           articleContent: data.content,
           generatedAt: new Date(),
-          source: feedInfo.sourceName
+          source: feedInfo.sourceName,
+          embedding
         });
 
         await newArticle.save();
-        console.log(`Saved article for feedId: ${uniqueId} from ${feedInfo.sourceName}`);
+        console.log(`Saved + embedded article for feedId: ${uniqueId} from ${feedInfo.sourceName}`);
       }
     } catch (error) {
       console.error(`Error processing feed ${feedInfo.sourceName}:`, error);
