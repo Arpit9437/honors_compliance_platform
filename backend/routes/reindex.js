@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+
 const Article = require('../models/Article');
 const { embedText } = require('../services/embeddings');
 
@@ -8,7 +9,8 @@ router.post('/reindex-gemini', async (_req, res) => {
     const cursor = Article.find().cursor();
     let count = 0;
     for await (const doc of cursor) {
-      const emb = await embedText(`${doc.title}\n\n${doc.articleContent || ''}`);
+      const base = `${doc.title || ''}\n\n${doc.rawBody || doc.articleContent || ''}`;
+      const emb = await embedText(base);
       await Article.updateOne({ _id: doc._id }, { $set: { embedding: emb } });
       count += 1;
     }

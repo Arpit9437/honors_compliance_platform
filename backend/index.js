@@ -1,8 +1,10 @@
 const express = require('express');
 require('dotenv').config();
+
 const connectDB = require('./utils/db');
 const { processAllFeeds } = require('./services/rssProcessor');
 const cron = require('node-cron');
+
 const chatRouter = require('./routes/chat');
 const reindexRouter = require('./routes/reindex');
 
@@ -27,6 +29,7 @@ app.get('/api/run-pipeline', async (_req, res) => {
 app.use('/api', chatRouter);
 app.use('/api', reindexRouter);
 
+// Optional: keep your existing cron+lock code
 let isRunning = false;
 let lastRunAt = null;
 
@@ -36,33 +39,23 @@ async function runPipelineSafely() {
     return;
   }
   isRunning = true;
-  const startedAt = new Date();
-  console.log(`[CRON] Starting pipeline at ${startedAt.toISOString()}`);
   try {
     await processAllFeeds();
     lastRunAt = new Date();
-    console.log(`[CRON] Completed pipeline at ${lastRunAt.toISOString()}`);
-  } catch (err) {
-    console.error('[CRON] Pipeline failed:', err);
+  } catch (e) {
+    console.error('Scheduled pipeline error:', e);
   } finally {
     isRunning = false;
   }
 }
 
-cron.schedule('*/15 * * * *', runPipelineSafely, {
-  scheduled: true,
-  timezone: process.env.TZ || 'Asia/Calcutta',
-});
+// Example: run every 15 minutes
+cron.schedule('*/15 * * * *', runPipelineSafely);
 
 app.get('/health', (_req, res) => {
-  res.json({
-    status: 'ok',
-    isRunning,
-    lastRunAt,
-    timezone: process.env.TZ || 'UTC',
-  });
+  res.json({ ok: true, isRunning, lastRunAt });
 });
 
 app.listen(port, () => {
-  console.log(`Server running on http://localhost:${port}`);
+  console.log(`Server listening on port ${port}`);
 });

@@ -5,7 +5,9 @@ const articleSchema = new mongoose.Schema({
   title: String,
   link: String,
   pubDate: Date,
-  articleContent: String,
+  articleContent: String, 
+  summary: String,        // short summary for previews
+  tag: String,            // domain tag (one of fixed list)
   generatedAt: Date,
   source: String,
   embedding: { type: [Number], default: [] }
