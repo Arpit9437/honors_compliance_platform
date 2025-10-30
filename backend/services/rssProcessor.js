@@ -1,12 +1,11 @@
-const Parser = require('rss-parser');
-const fetch = require('node-fetch');
-const cheerio = require('cheerio');
-
-const { groq } = require('@ai-sdk/groq');
-const { generateText } = require('ai');
-
-const Article = require('../models/Article');
-const { embedText } = require('./embeddings');
+import Parser from 'rss-parser';
+import fetch from 'node-fetch';
+import * as cheerio from 'cheerio';
+import { groq } from '@ai-sdk/groq';
+import { generateText } from 'ai';
+import { embedText } from './embeddings.js';
+import Post from '../models/post.model.js';
+import slugify from 'slugify';
 
 const parser = new Parser();
 
@@ -35,11 +34,11 @@ function extractReadableText(html) {
   for (const sel of candidates) {
     const node = $(sel);
     if (node && node.text() && node.text().trim().length > 200) {
-      return node.text().replace(/\s+\n/g, '\n').replace(/\n{2,}/g, '\n\n').trim();
+      return node.text().replace(/\\s+\\n/g, '\\n').replace(/\\n{2,}/g, '\\n\\n').trim();
     }
   }
-  const text = $('p').map((_, el) => $(el).text().trim()).get().filter(Boolean).join('\n\n');
-  return text || $.text().replace(/\s+\n/g, '\n').replace(/\n{2,}/g, '\n\n').trim();
+  const text = $('p').map((_, el) => $(el).text().trim()).get().filter(Boolean).join('\\n\\n');
+  return text || $.text().replace(/\\s+\\n/g, '\\n').replace(/\\n{2,}/g, '\\n\\n').trim();
 }
 
 async function fetchRawBody(link) {
@@ -91,16 +90,16 @@ Return strictly valid JSON with keys: "title", "summary", "content", "tag".
   const inferTag = (txt = '') => {
     const s = (txt || '').toLowerCase();
     if (!s) return 'compliance';
-    if (s.match(/\b(gst|tax|tds|income tax|taxation)\b/)) return 'tax';
-    if (s.match(/\b(labou?r|wage|employee|employment|industrial relations)\b/)) return 'labor';
-    if (s.match(/\b(loan|credit|interest|finance|bank|fund|investment)\b/)) return 'finance';
-    if (s.match(/\b(scheme|grant|subsidy|benefit|programme|program)\b/)) return 'schemes';
-    if (s.match(/\b(license|licence|registration|regulation|compliance|act|rule|law)\b/)) return 'compliance';
+    if (s.match(/\\b(gst|tax|tds|income tax|taxation)\\b/)) return 'tax';
+    if (s.match(/\\b(labou?r|wage|employee|employment|industrial relations)\\b/)) return 'labor';
+    if (s.match(/\\b(loan|credit|interest|finance|bank|fund|investment)\\b/)) return 'finance';
+    if (s.match(/\\b(scheme|grant|subsidy|benefit|programme|program)\\b/)) return 'schemes';
+    if (s.match(/\\b(license|licence|registration|regulation|compliance|act|rule|law)\\b/)) return 'compliance';
     return 'compliance';
   };
 
   if (!allowedTags.includes(data.tag)) {
-    const tryText = ((data.summary || '') + '\n' + (data.content || '')).trim();
+    const tryText = ((data.summary || '') + '\\n' + (data.content || '')).trim();
     data.tag = inferTag(tryText);
   }
   return data;
@@ -108,28 +107,53 @@ Return strictly valid JSON with keys: "title", "summary", "content", "tag".
 
 async function processFeed(feedInfo) {
   const feed = await parser.parseURL(feedInfo.url);
+
   for (const item of feed.items || []) {
     const uniqueId = item.guid || item.link || item.id || item.title;
     if (!uniqueId) continue;
 
-    const existing = await Article.findOne({ feedId: uniqueId });
+    const existing = await Post.findOne({ feedId: uniqueId });
     if (existing) continue;
 
     const generated = await generateArticle(item);
-    const contentForEmbed = (generated.content || '').trim();
+    // Check for required fields
+    if (
+      !generated.title ||
+      !generated.content ||
+      !generated.summary ||
+      !generated.tag ||
+      generated.content.trim() === '' ||
+      generated.summary.trim() === '' ||
+      generated.title.trim() === '' ||
+      generated.tag.trim() === ''
+    ) {
+      continue; // Skip if any required field is missing or empty
+    }
+
+    const contentForEmbed = generated.content.trim();
     const embedding = await embedText(contentForEmbed);
 
-    const doc = new Article({
+    const slug = slugify(generated.title || item.title, { 
+      lower: true, 
+      strict: true 
+    });
+
+    if (!slug || slug.trim() === '') continue;
+
+    const doc = new Post({
       feedId: uniqueId,
-      title: generated.title || item.title || '',
+      userId: 'ai',
+      title: generated.title,
+      content: generated.content,
       link: item.link || '',
-      pubDate: item.pubDate ? new Date(item.pubDate) : new Date(),
-      articleContent: generated.content || '',
-      summary: generated.summary || '',
-      tag: generated.tag || '',
+      summary: generated.summary,
+      tag: generated.tag,
+      category: generated.tag,
       generatedAt: new Date(),
       source: feedInfo.sourceName,
-      embedding
+      embedding,
+      slug,
+      isGenerated: true
     });
 
     await doc.save();
@@ -142,4 +166,4 @@ async function processAllFeeds() {
   }
 }
 
-module.exports = { processAllFeeds };
+export { processAllFeeds };

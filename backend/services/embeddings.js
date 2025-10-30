@@ -2,7 +2,7 @@ let googleAI = null;
 
 async function embedGemini(input) {
   if (!googleAI) {
-    const { GoogleGenerativeAI } = require('@google/generative-ai');
+    const { GoogleGenerativeAI } = await import('@google/generative-ai');
     googleAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
   }
   const model = googleAI.getGenerativeModel({
@@ -16,4 +16,4 @@ async function embedText(text) {
   return embedGemini(text);
 }
 
-module.exports = { embedText };
+export { embedText };

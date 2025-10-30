@@ -1,8 +1,21 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
+import Post from '../models/post.model.js';
 
 async function searchSimilarMongo(queryVector, topK = 5) {
-  const collection = mongoose.connection.db.collection(process.env.MDB_COLLECTION || 'articles');
+  const collectionName = process.env.MDB_COLLECTION || 'posts';
+  const collection = mongoose.connection.db.collection(collectionName);
   const index = process.env.MDB_VECTOR_INDEX || 'vector_index';
+  
+  console.log(`Searching in collection: ${collectionName} with index: ${index}`);
+  
+  // Verify collection exists and has documents
+  const count = await collection.countDocuments();
+  console.log(`Found ${count} documents in collection ${collectionName}`);
+  
+  if (count === 0) {
+    console.warn('No documents found in collection');
+    return [];
+  }
 
   const pipeline = [
     {
@@ -20,9 +33,9 @@ async function searchSimilarMongo(queryVector, topK = 5) {
         title: 1,
         link: 1,
         source: 1,
-        pubDate: 1,
-        articleContent: 1,
-        rawBody: 1,
+        createdAt: 1,
+        content: 1,
+        summary: 1,
         score: { $meta: 'searchScore' }
       }
     }
@@ -31,14 +44,26 @@ async function searchSimilarMongo(queryVector, topK = 5) {
   return await collection.aggregate(pipeline).toArray();
 }
 
-// Hybrid retrieval: top-level knnBeta + top-level filter (no nesting of knnBeta)
 async function searchSimilarMongoHybrid(queryVector, topK = 15, queryText = '') {
-  const collection = mongoose.connection.db.collection(process.env.MDB_COLLECTION || 'articles');
+  const collectionName = process.env.MDB_COLLECTION || 'posts';
+  const collection = mongoose.connection.db.collection(collectionName);
   const index = process.env.MDB_VECTOR_INDEX || 'vector_index';
+
+  // Debug: Check collection content
+  const count = await collection.countDocuments();
+  console.log(`[Debug] Collection ${collectionName} has ${count} documents`);
+  
+  // Debug: Check a sample document
+  const sampleDoc = await collection.findOne({});
+  console.log('[Debug] Sample document structure:', JSON.stringify({
+    hasEmbedding: !!sampleDoc?.embedding,
+    embeddingLength: sampleDoc?.embedding?.length,
+    fields: Object.keys(sampleDoc || {})
+  }, null, 2));
 
   const stop = new Set(['the','a','an','to','of','in','on','for','with','and','or','is','are','has','have','what']);
   const keywords = (queryText || '')
-    .split(/\s+/)
+    .split(/\\s+/)
     .map(w => w.trim().toLowerCase())
     .filter(w => w && w.length > 2 && !stop.has(w));
 
@@ -51,7 +76,6 @@ async function searchSimilarMongoHybrid(queryVector, topK = 15, queryText = '') 
     }
   };
 
-
   const pipeline = [
     { $search: searchStage },
     {
@@ -59,26 +83,23 @@ async function searchSimilarMongoHybrid(queryVector, topK = 15, queryText = '') 
         title: 1,
         link: 1,
         source: 1,
-        pubDate: 1,
-        articleContent: 1,
-        rawBody: 1,
+        createdAt: 1,
+        content: 1,
+        summary: 1,
         score: { $meta: 'searchScore' }
       }
     },
   ];
 
-  // If keywords exist, add a server-side $match stage to filter results
-  // from the knn search. This avoids placing unsupported fields inside
-  // the $search stage itself.
   if (keywords.length) {
-    const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
+    const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\\]\\]/g, '\\\\$&');
     const kws = Array.from(new Set(keywords));
     const orClauses = [];
     kws.forEach(k => {
       const pat = escapeRegExp(k);
       orClauses.push({ title: { $regex: pat, $options: 'i' } });
-      orClauses.push({ articleContent: { $regex: pat, $options: 'i' } });
-      orClauses.push({ rawBody: { $regex: pat, $options: 'i' } });
+      orClauses.push({ content: { $regex: pat, $options: 'i' } });
+      orClauses.push({ summary: { $regex: pat, $options: 'i' } });
     });
 
     pipeline.push({ $match: { $or: orClauses } });
@@ -87,7 +108,6 @@ async function searchSimilarMongoHybrid(queryVector, topK = 15, queryText = '') 
   pipeline.push({ $limit: Math.max(20, Number(topK)) });
 
   try {
-    console.debug && console.debug('Aggregate pipeline:', JSON.stringify(pipeline));
     return await collection.aggregate(pipeline).toArray();
   } catch (err) {
     console.error('Aggregate failed:', err?.message || err);
@@ -97,16 +117,16 @@ async function searchSimilarMongoHybrid(queryVector, topK = 15, queryText = '') 
       try {
         const safeSearch = [
           { $search: { index, knnBeta: { path: 'embedding', vector: queryVector, k: Math.max(50, Number(topK)) } } },
-          { $project: { title: 1, link: 1, source: 1, pubDate: 1, articleContent: 1, rawBody: 1, score: { $meta: 'searchScore' } } },
+          { $project: { title: 1, link: 1, source: 1, createdAt: 1, content: 1, summary: 1, score: { $meta: 'searchScore' } } },
           { $limit: Math.max(50, Number(topK)) }
         ];
         const docs = await collection.aggregate(safeSearch).toArray();
         if (!keywords.length) return docs.slice(0, topK);
 
         const kws = Array.from(new Set(keywords));
-        const reList = kws.map(k => new RegExp(k.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&'), 'i'));
+        const reList = kws.map(k => new RegExp(k.replace(/[.*+?^${}()|[\\]\\]/g, '\\\\$&'), 'i'));
         const filtered = docs.filter(d => {
-          const hay = ((d.title || '') + '\n' + (d.articleContent || '') + '\n' + (d.rawBody || '')).toLowerCase();
+          const hay = ((d.title || '') + '\\n' + (d.content || '') + '\\n' + (d.summary || '')).toLowerCase();
           return reList.some(r => r.test(hay));
         });
 
@@ -121,4 +141,4 @@ async function searchSimilarMongoHybrid(queryVector, topK = 15, queryText = '') 
   }
 }
 
-module.exports = { searchSimilarMongo, searchSimilarMongoHybrid };
+export { searchSimilarMongo, searchSimilarMongoHybrid };
