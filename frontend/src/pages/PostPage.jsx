@@ -11,7 +11,6 @@ const PostPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [post, setPost] = useState(null);
-  const [recentPosts, setRecentPosts] = useState(null);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
   const { currentUser } = useSelector((state) => state.user);
@@ -53,20 +52,7 @@ const PostPage = () => {
     fetchPost();
   }, [postSlug, currentUser]);
 
-  useEffect(() => {
-    try {
-      const fetchRecentPosts = async () => {
-        const res = await fetch(`/api/post/getPosts?limit=3`);
-        const data = await res.json();
-        if (res.ok) {
-          setRecentPosts(data.posts);
-        }
-      };
-      fetchRecentPosts();
-    } catch (error) {
-      console.log(error.message);
-    }
-  }, []);
+
 
   const handleBookmark = async () => {
     if (!currentUser) {
@@ -214,19 +200,7 @@ const PostPage = () => {
           <CommentSection postId={post._id} />
         </div>
 
-        {/* Recent Posts */}
-        {recentPosts && recentPosts.length > 0 && (
-          <div className="mt-12 fade-in" style={{ animationDelay: '200ms' }}>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-              Related Updates
-            </h2>
-            <div className="grid md:grid-cols-3 gap-6">
-              {recentPosts.map((recentPost) => (
-                <PostCard key={recentPost._id} post={recentPost} />
-              ))}
-            </div>
-          </div>
-        )}
+
       </article>
 
       <style jsx>{`
