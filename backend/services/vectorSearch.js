@@ -2,20 +2,8 @@ import mongoose from 'mongoose';
 import Post from '../models/post.model.js';
 
 async function searchSimilarMongo(queryVector, topK = 5) {
-  const collectionName = process.env.MDB_COLLECTION || 'posts';
-  const collection = mongoose.connection.db.collection(collectionName);
+  const collection = mongoose.connection.db.collection(process.env.MDB_COLLECTION || 'posts');
   const index = process.env.MDB_VECTOR_INDEX || 'vector_index';
-  
-  console.log(`Searching in collection: ${collectionName} with index: ${index}`);
-  
-  // Verify collection exists and has documents
-  const count = await collection.countDocuments();
-  console.log(`Found ${count} documents in collection ${collectionName}`);
-  
-  if (count === 0) {
-    console.warn('No documents found in collection');
-    return [];
-  }
 
   const pipeline = [
     {
@@ -45,26 +33,28 @@ async function searchSimilarMongo(queryVector, topK = 5) {
 }
 
 async function searchSimilarMongoHybrid(queryVector, topK = 15, queryText = '') {
-  const collectionName = process.env.MDB_COLLECTION || 'posts';
-  const collection = mongoose.connection.db.collection(collectionName);
-  const index = process.env.MDB_VECTOR_INDEX || 'vector_index';
-
-  // Debug: Check collection content
-  const count = await collection.countDocuments();
-  console.log(`[Debug] Collection ${collectionName} has ${count} documents`);
+  console.log('\n=== Vector Search Debug ===');
+  console.log('Collection:', process.env.MDB_COLLECTION || 'posts');
+  console.log('Index:', process.env.MDB_VECTOR_INDEX || 'vector_index');
+  console.log('Vector length:', queryVector?.length);
   
-  // Debug: Check a sample document
-  const sampleDoc = await collection.findOne({});
-  console.log('[Debug] Sample document structure:', JSON.stringify({
-    hasEmbedding: !!sampleDoc?.embedding,
-    embeddingLength: sampleDoc?.embedding?.length,
-    fields: Object.keys(sampleDoc || {})
-  }, null, 2));
+  const collection = mongoose.connection.db.collection(process.env.MDB_COLLECTION || 'posts');
+  const index = process.env.MDB_VECTOR_INDEX || 'vector_index';
+  
+  // Debug: Check if collection exists and has documents
+  const count = await collection.countDocuments();
+  console.log('Total documents in collection:', count);
+  
+  // Debug: Check if documents have embeddings
+  const hasEmbeddings = await collection.countDocuments({ embedding: { $exists: true, $not: { $size: 0 } } });
+  console.log('Documents with embeddings:', hasEmbeddings);
 
   const stop = new Set(['the','a','an','to','of','in','on','for','with','and','or','is','are','has','have','what']);
+  // Clean and split the query into keywords
   const keywords = (queryText || '')
-    .split(/\\s+/)
+    .split(/\s+/)
     .map(w => w.trim().toLowerCase())
+    .map(w => w.replace(/[?!.,]/g, '')) // Remove punctuation
     .filter(w => w && w.length > 2 && !stop.has(w));
 
   const searchStage = {
@@ -97,18 +87,44 @@ async function searchSimilarMongoHybrid(queryVector, topK = 15, queryText = '') 
     const orClauses = [];
     kws.forEach(k => {
       const pat = escapeRegExp(k);
-      orClauses.push({ title: { $regex: pat, $options: 'i' } });
-      orClauses.push({ content: { $regex: pat, $options: 'i' } });
-      orClauses.push({ summary: { $regex: pat, $options: 'i' } });
+      // Word boundary search for more accurate matches
+      orClauses.push({ title: { $regex: `\\b${pat}\\b`, $options: 'i' } });
+      orClauses.push({ content: { $regex: `\\b${pat}\\b`, $options: 'i' } });
+      orClauses.push({ summary: { $regex: `\\b${pat}\\b`, $options: 'i' } });
     });
+    
+    // Add full text search for exact matches
+    if (queryText.trim()) {
+      const fullTextPat = escapeRegExp(queryText.trim());
+      orClauses.push({ title: { $regex: fullTextPat, $options: 'i' } });
+      orClauses.push({ content: { $regex: fullTextPat, $options: 'i' } });
+      orClauses.push({ summary: { $regex: fullTextPat, $options: 'i' } });
 
-    pipeline.push({ $match: { $or: orClauses } });
+    }
+    
+    pipeline.push({ 
+      $match: { 
+        $or: orClauses
+      }
+    });
   }
+
+  // Add a sorting stage to combine vector similarity with text match relevance
+  pipeline.push({ 
+    $sort: { 
+      score: -1  // Sort by vector similarity score
+    }
+  });
 
   pipeline.push({ $limit: Math.max(20, Number(topK)) });
 
   try {
-    return await collection.aggregate(pipeline).toArray();
+    const results = await collection.aggregate(pipeline).toArray();
+    console.log('Search results found:', results.length);
+    if (results.length === 0) {
+      console.log('Pipeline:', JSON.stringify(pipeline, null, 2));
+    }
+    return results;
   } catch (err) {
     console.error('Aggregate failed:', err?.message || err);
     if ((err?.message || '').toLowerCase().includes('unrecognized field "filter"') ||
