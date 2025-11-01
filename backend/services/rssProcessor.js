@@ -11,17 +11,29 @@ const parser = new Parser();
 
 const rssFeeds = [
   {
-    url: 'https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=3',
-    sourceName: 'Press Information Bureau'
-  },
-  {
     url: 'https://services.india.gov.in/feed/rss?cat_id=7&ln=en',
     sourceName: 'India.gov.in'
   },
   {
     url: 'https://services.india.gov.in/feed/rss?cat_id=16&ln=en',
     sourceName: 'India.gov.in'
-  }
+  },
+  {
+    url: 'https://services.india.gov.in/feed/rss?cat_id=8&ln=en',
+    sourceName: 'India.gov.in'
+  },
+  {
+    url: 'https://www.rbi.org.in/notifications_rss.xml',
+    sourceName: 'RBI - Notifications'
+  },
+  {
+    url: 'https://www.sebi.gov.in/sebirss.xml',
+    sourceName: 'SEBI - Press Release'
+  },
+  {
+    url: 'https://www.rbi.org.in/pressreleases_rss.xml',
+    sourceName: 'RBI — Press Releases'
+  },
 ];
 
 function extractReadableText(html) {
@@ -107,6 +119,7 @@ Return strictly valid JSON with keys: "title", "summary", "content", "tag".
 
 async function processFeed(feedInfo) {
   const feed = await parser.parseURL(feedInfo.url);
+  const adminUserId = process.env.ADMIN_USER_ID; // Make sure to set this in .env
 
   for (const item of feed.items || []) {
     const uniqueId = item.guid || item.link || item.id || item.title;
