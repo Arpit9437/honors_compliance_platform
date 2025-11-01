@@ -14,19 +14,29 @@ function takeLongSnippet(text, max = 1800) {
 
 router.post('/chat', async (req, res) => {
   try {
-    console.log('Received chat request:', req.body);
     const { message, topK = 12, mode = 'hybrid' } = req.body || {};
     if (!message || typeof message !== 'string') {
       return res.status(400).json({ error: 'message is required' });
     }
 
-    console.log('Generating embedding for message:', message);
     const queryVector = await embedText(message);
-    console.log('Embedding generated, length:', queryVector.length);
 
     const hits = mode === 'hybrid'
       ? await searchSimilarMongoHybrid(queryVector, topK, message)
       : await searchSimilarMongo(queryVector, topK);
+
+    console.log('\n=== Chat Context Retrieval ===');
+    console.log('Query:', message);
+    console.log('Mode:', mode);
+    console.log('TopK:', topK);
+    console.log('\nRetrieved Documents:');
+    hits.forEach((hit, index) => {
+      console.log(`\n[${index + 1}] Score: ${hit.score?.toFixed(4) || 'N/A'}`);
+      console.log(`Title: ${hit.title || 'No Title'}`);
+      console.log(`Source: ${hit.source || 'Unknown'}`);
+      console.log(`Content Preview: ${takeLongSnippet(hit.content || '', 200)}...`);
+    });
+    console.log('\n=== End Context Retrieval ===\n');
 
     const contexts = hits.map((h, i) => {
       const snippet = takeLongSnippet(String(h.content || ''));
