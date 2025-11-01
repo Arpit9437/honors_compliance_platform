@@ -20,14 +20,14 @@ const Search = () => {
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
     const searchTermFromUrl = urlParams.get("searchTerm");
-    const sortFromUrl = urlParams.get("sort");
+    const orderFromUrl = urlParams.get("order");
     const categoryFromUrl = urlParams.get("category");
-    if (searchTermFromUrl || sortFromUrl || categoryFromUrl) {
+    if (searchTermFromUrl || orderFromUrl || categoryFromUrl) {
       setSidebarData({
         ...sidebarData,
-        searchTerm: searchTermFromUrl,
-        sort: sortFromUrl,
-        category: categoryFromUrl,
+        searchTerm: searchTermFromUrl || "",
+        sort: orderFromUrl || "desc",
+        category: categoryFromUrl || "uncategorized",
       });
     }
 
@@ -71,8 +71,11 @@ const Search = () => {
     e.preventDefault();
     const urlParams = new URLSearchParams(location.search);
     urlParams.set("searchTerm", sidebarData.searchTerm);
-    urlParams.set("sort", sidebarData.sort);
-    urlParams.set("category", sidebarData.category);
+    urlParams.set("order", sidebarData.sort);
+    // Only set category if it's not "uncategorized" (All Categories)
+    if (sidebarData.category !== "uncategorized") {
+      urlParams.set("category", sidebarData.category);
+    }
     const searchQuery = urlParams.toString();
     navigate(`/search?${searchQuery}`);
   };
@@ -82,8 +85,13 @@ const Search = () => {
     const startIndex = numberOfPosts;
     const urlParams = new URLSearchParams(location.search);
     urlParams.set("startIndex", startIndex);
+    
+    // Remove category parameter if it's "uncategorized"
+    if (sidebarData.category === "uncategorized") {
+      urlParams.delete("category");
+    }
+    
     const searchQuery = urlParams.toString();
-
     const res = await fetch(`/api/post/getposts?${searchQuery}`);
     if (!res.ok) {
       return;
