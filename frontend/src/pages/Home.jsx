@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import PostCard from '../components/PostCard';
+import { useSelector } from "react-redux";
 import { 
   Shield, 
   FileText, 
@@ -16,6 +17,7 @@ import {
 
 const Home = () => {
   const [posts, setPosts] = useState([]);
+  const { currentUser } = useSelector((state) => state.user);
 
   useEffect(() => {
     const fetchPosts = async () => {
@@ -108,13 +110,15 @@ const Home = () => {
                 Explore Updates
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </Link>
-              <Link 
-                to="/dashboard?tab=profile" 
-                className="inline-flex items-center gap-2 px-8 py-4 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-xl font-semibold shadow-md hover:shadow-lg border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 transform hover:-translate-y-0.5 transition-all duration-200"
-              >
-                <Shield className="w-5 h-5" />
-                Get Started Free
-              </Link>
+              {!currentUser && (
+                <Link 
+                  to="/dashboard?tab=profile" 
+                  className="inline-flex items-center gap-2 px-8 py-4 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-xl font-semibold shadow-md hover:shadow-lg border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 transform hover:-translate-y-0.5 transition-all duration-200"
+                >
+                  <Shield className="w-5 h-5" />
+                  Get Started Free
+                </Link>
+              )}
             </div>
 
             {/* Trust Indicators */}
@@ -153,40 +157,6 @@ const Home = () => {
         </div>
       </section> */}
 
-      {/* Features Section */}
-      <section className="py-20 bg-gray-50 dark:bg-gray-800/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center space-y-4 mb-16">
-            <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 dark:text-white">
-              Why Choose PolicySync?
-            </h2>
-            <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
-              Everything you need to stay compliant, in one powerful platform
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {features.map((feature, index) => (
-              <div
-                key={index}
-                className="group bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-xl transition-all duration-300 fade-in card-hover"
-                style={{ animationDelay: `${index * 100}ms` }}
-              >
-                <div className={`inline-flex items-center justify-center w-14 h-14 bg-${feature.color}-100 dark:bg-${feature.color}-900/30 rounded-xl mb-4 group-hover:scale-110 transition-transform duration-300`}>
-                  <feature.icon className={`w-7 h-7 text-${feature.color}-600 dark:text-${feature.color}-400`} />
-                </div>
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                  {feature.title}
-                </h3>
-                <p className="text-gray-600 dark:text-gray-400">
-                  {feature.description}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* Categories Section */}
       <section className="py-16 bg-white dark:bg-gray-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -200,23 +170,34 @@ const Home = () => {
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {categories.map((category, index) => (
-              <Link
-                key={index}
-                to={`/search?category=${category.name}`}
-                className="group p-6 bg-gray-50 dark:bg-gray-800 rounded-xl border-2 border-transparent hover:border-blue-500 dark:hover:border-blue-400 transition-all duration-300 card-hover"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-3xl">{category.icon}</span>
-                  <span className={`px-3 py-1 ${category.color} rounded-full text-sm font-semibold`}>
-                    {category.count}
-                  </span>
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                  {category.name}
-                </h3>
-              </Link>
-            ))}
+            {categories.map((category, index) => {
+              // Map the category names to their corresponding values in the search filter
+              const categoryMap = {
+                'Tax Regulations': 'tax',
+                'Labour Laws': 'labor',
+                'Finance & Banking': 'finance',
+                'Government Schemes': 'schemes'
+              };
+              const searchValue = categoryMap[category.name] || 'uncategorized';
+              
+              return (
+                <Link
+                  key={index}
+                  to={`/search?category=${searchValue}&order=desc`}
+                  className="group p-6 bg-gray-50 dark:bg-gray-800 rounded-xl border-2 border-transparent hover:border-blue-500 dark:hover:border-blue-400 transition-all duration-300 card-hover"
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-3xl">{category.icon}</span>
+                    <span className={`px-3 py-1 ${category.color} rounded-full text-sm font-semibold`}>
+                      {category.count}
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                    {category.name}
+                  </h3>
+                </Link>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -253,32 +234,68 @@ const Home = () => {
         </section>
       )}
 
-      {/* CTA Section */}
-      <section className="py-20 bg-gradient-to-r from-blue-600 to-cyan-600 dark:from-blue-700 dark:to-cyan-700">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-6">
-          <h2 className="text-3xl lg:text-5xl font-bold text-white">
-            Ready to Stay Compliant?
-          </h2>
-          <p className="text-xl text-blue-100">
-            Join thousands of businesses staying ahead of regulatory changes
-          </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-            <Link 
-              to="/sign-up" 
-              className="inline-flex items-center gap-2 px-8 py-4 bg-white text-blue-600 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
-            >
-              Start Free Trial
-              <ArrowRight className="w-5 h-5" />
-            </Link>
-            <Link 
-              to="/about" 
-              className="inline-flex items-center gap-2 px-8 py-4 bg-transparent text-white border-2 border-white rounded-xl font-semibold hover:bg-white/10 transition-all duration-200"
-            >
-              Learn More
-            </Link>
+      {/* Features Section */}
+      <section className="py-20 bg-gray-50 dark:bg-gray-800/50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center space-y-4 mb-16">
+            <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 dark:text-white">
+              Why Choose PolicySync?
+            </h2>
+            <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+              Everything you need to stay compliant, in one powerful platform
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {features.map((feature, index) => (
+              <div
+                key={index}
+                className="group bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-xl transition-all duration-300 fade-in card-hover"
+                style={{ animationDelay: `${index * 100}ms` }}
+              >
+                <div className={`inline-flex items-center justify-center w-14 h-14 bg-${feature.color}-100 dark:bg-${feature.color}-900/30 rounded-xl mb-4 group-hover:scale-110 transition-transform duration-300`}>
+                  <feature.icon className={`w-7 h-7 text-${feature.color}-600 dark:text-${feature.color}-400`} />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                  {feature.title}
+                </h3>
+                <p className="text-gray-600 dark:text-gray-400">
+                  {feature.description}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
+
+      {/* CTA Section */}
+      {!currentUser && (
+        <section className="py-20 bg-gradient-to-r from-blue-600 to-cyan-600 dark:from-blue-700 dark:to-cyan-700">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-6">
+            <h2 className="text-3xl lg:text-5xl font-bold text-white">
+              Ready to Stay Compliant?
+            </h2>
+            <p className="text-xl text-blue-100">
+              Join thousands of businesses staying ahead of regulatory changes
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+              <Link 
+                to="/sign-up" 
+                className="inline-flex items-center gap-2 px-8 py-4 bg-white text-blue-600 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
+              >
+                Start Free Trial
+                <ArrowRight className="w-5 h-5" />
+              </Link>
+              <Link 
+                to="/about" 
+                className="inline-flex items-center gap-2 px-8 py-4 bg-transparent text-white border-2 border-white rounded-xl font-semibold hover:bg-white/10 transition-all duration-200"
+              >
+                Learn More
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
 
       <style jsx>{`
         @keyframes blob {
