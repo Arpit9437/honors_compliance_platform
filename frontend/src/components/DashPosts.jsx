@@ -15,12 +15,24 @@ const DashPosts = () => {
   useEffect(() => {
     const fetchPosts = async () => {
       try {
-        const res = await fetch(`/api/post/getposts?userId=${currentUser._id}`);
-        const data = await res.json();
+        // Fetch both user's posts and AI-generated posts
+        const [userRes, aiRes] = await Promise.all([
+          fetch(`/api/post/getposts?userId=${currentUser._id}`),
+          fetch(`/api/post/getposts?userId=ai`)
+        ]);
+        
+        const [userData, aiData] = await Promise.all([
+          userRes.json(),
+          aiRes.json()
+        ]);
 
-        if (res.ok) {
-          setUserPosts(data.posts);
-          if(data.posts.length < 9){
+        if (userRes.ok && aiRes.ok) {
+          // Combine and sort posts by updatedAt
+          const allPosts = [...userData.posts, ...aiData.posts].sort((a, b) => 
+            new Date(b.updatedAt) - new Date(a.updatedAt)
+          );
+          setUserPosts(allPosts);
+          if(allPosts.length < 9){
             setShowMore(false)
           }
         }
@@ -36,11 +48,22 @@ const DashPosts = () => {
   const handleShowMore = async()=> {
     const startIndex = userPosts.length
     try {
-      const res = await fetch(`/api/post/getposts?userId=${currentUser._id}&startIndex=${startIndex}`);
-      const data = await res.json()
-      if(res.ok){
-        setUserPosts((prev)=>[...prev, ...data.posts])
-        if(data.posts.length < 9){
+      const [userRes, aiRes] = await Promise.all([
+        fetch(`/api/post/getposts?userId=${currentUser._id}&startIndex=${startIndex}`),
+        fetch(`/api/post/getposts?userId=ai&startIndex=${startIndex}`)
+      ]);
+      
+      const [userData, aiData] = await Promise.all([
+        userRes.json(),
+        aiRes.json()
+      ]);
+
+      if(userRes.ok && aiRes.ok){
+        const newPosts = [...userData.posts, ...aiData.posts].sort((a, b) => 
+          new Date(b.updatedAt) - new Date(a.updatedAt)
+        );
+        setUserPosts((prev)=>[...prev, ...newPosts])
+        if(newPosts.length < 9){
           setShowMore(false)
         }
       }
@@ -77,7 +100,6 @@ const DashPosts = () => {
             <Table.Head>
               <Table.HeadCell>Date created</Table.HeadCell>
               <Table.HeadCell>Date updated</Table.HeadCell>
-              <Table.HeadCell>Post image</Table.HeadCell>
               <Table.HeadCell>Post title</Table.HeadCell>
               <Table.HeadCell>Category</Table.HeadCell>
               <Table.HeadCell>Delete</Table.HeadCell>
@@ -93,11 +115,6 @@ const DashPosts = () => {
                   </Table.Cell>
                   <Table.Cell>
                     {new Date(post.updatedAt).toLocaleDateString()}
-                  </Table.Cell>
-                  <Table.Cell>
-                    <Link to={`/post/${post.slug}`}>
-                      <div className="w-20 h-10 bg-gray-500 flex items-center justify-center text-white font-semibold">{post.title ? post.title.slice(0,2).toUpperCase() : '—'}</div>
-                    </Link>
                   </Table.Cell>
                   <Table.Cell>
                     <Link className="font-medium text-gray-900 dark:text-white" to={`/post/${post.slug}`}>{post.title}</Link>
