@@ -1,8 +1,10 @@
 import React from "react";
 import { Shield, Target, Users, Zap, Code, Database, Cloud, Lock, CheckCircle, ArrowRight } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useSelector } from "react-redux";
 
 const About = () => {
+  const { currentUser } = useSelector((state) => state.user);
   const features = [
     {
       icon: Shield,
@@ -46,13 +48,6 @@ const About = () => {
     { icon: "⚖️", name: "Legal Updates", description: "New laws, amendments, and court rulings" },
   ];
 
-  const stats = [
-    { value: "500+", label: "Regulatory Updates" },
-    { value: "1,200+", label: "Active Users" },
-    { value: "98%", label: "Accuracy Rate" },
-    { value: "24/7", label: "Monitoring" },
-  ];
-
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900">
       {/* Hero Section */}
@@ -82,19 +77,7 @@ const About = () => {
         </div>
       </section>
 
-      {/* Stats Section */}
-      <section className="py-16 bg-white dark:bg-gray-900 border-y border-gray-200 dark:border-gray-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
-            {stats.map((stat, index) => (
-              <div key={index} className="text-center space-y-2 fade-in" style={{ animationDelay: `${index * 100}ms` }}>
-                <p className="text-4xl font-bold gradient-text">{stat.value}</p>
-                <p className="text-sm text-gray-600 dark:text-gray-400">{stat.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+
 
       {/* Mission Section */}
       <section className="py-20 bg-gray-50 dark:bg-gray-800/50">
@@ -250,31 +233,24 @@ const About = () => {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-gradient-to-r from-blue-600 to-cyan-600 dark:from-blue-700 dark:to-cyan-700">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-6">
-          <h2 className="text-3xl lg:text-5xl font-bold text-white">
-            Join Our Community Today
-          </h2>
-          <p className="text-xl text-blue-100">
-            Be part of a growing network of compliance-conscious businesses and professionals
-          </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-            <Link 
-              to="/sign-up" 
-              className="inline-flex items-center gap-2 px-8 py-4 bg-white text-blue-600 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
-            >
-              Get Started Free
-              <ArrowRight className="w-5 h-5" />
-            </Link>
-            <Link 
-              to="/search" 
-              className="inline-flex items-center gap-2 px-8 py-4 bg-transparent text-white border-2 border-white rounded-xl font-semibold hover:bg-white/10 transition-all duration-200"
-            >
-              Explore Updates
-            </Link>
+      {!currentUser && (
+        <section className="py-20 bg-gradient-to-r from-blue-600 to-cyan-600 dark:from-blue-700 dark:to-cyan-700">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-6">
+            <h2 className="text-3xl lg:text-5xl font-bold text-white">
+              Ready to Get Started?
+            </h2>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+              <Link 
+                to="/sign-up" 
+                className="inline-flex items-center gap-2 px-8 py-4 bg-white text-blue-600 rounded-xl font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
+              >
+                Create Account
+                <ArrowRight className="w-5 h-5" />
+              </Link>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   );
 };
