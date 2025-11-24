@@ -7,7 +7,16 @@ import { embedText } from './embeddings.js';
 import Post from '../models/post.model.js';
 import slugify from 'slugify';
 
-const parser = new Parser();
+const parser = new Parser({
+  customFields: {
+    item: ['description', 'content:encoded']
+  },
+  headers: {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    'Accept': 'application/rss+xml, application/xml, text/xml, */*'
+  },
+  timeout: 15000
+});
 
 const rssFeeds = [
   {
@@ -46,17 +55,22 @@ function extractReadableText(html) {
   for (const sel of candidates) {
     const node = $(sel);
     if (node && node.text() && node.text().trim().length > 200) {
-      return node.text().replace(/\\s+\\n/g, '\\n').replace(/\\n{2,}/g, '\\n\\n').trim();
+      return node.text().replace(/\s+\n/g, '\n').replace(/\n{2,}/g, '\n\n').trim();
     }
   }
-  const text = $('p').map((_, el) => $(el).text().trim()).get().filter(Boolean).join('\\n\\n');
-  return text || $.text().replace(/\\s+\\n/g, '\\n').replace(/\\n{2,}/g, '\\n\\n').trim();
+  const text = $('p').map((_, el) => $(el).text().trim()).get().filter(Boolean).join('\n\n');
+  return text || $.text().replace(/\s+\n/g, '\n').replace(/\n{2,}/g, '\n\n').trim();
 }
 
 async function fetchRawBody(link) {
   try {
     if (!link) return '';
-    const resp = await fetch(link, { timeout: 15000 });
+    const resp = await fetch(link, { 
+      timeout: 15000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+      }
+    });
     if (!resp.ok) return '';
     const html = await resp.text();
     return extractReadableText(html);
@@ -94,7 +108,7 @@ Return strictly valid JSON with keys: "title", "summary", "content", "tag".
     const end = text.lastIndexOf('}');
     data = JSON.parse(text.slice(start, end + 1));
   } catch {
-    // Keep defaults
+    
   }
   
   const allowedTags = ['tax', 'labor', 'finance', 'compliance', 'schemes'];
@@ -102,81 +116,97 @@ Return strictly valid JSON with keys: "title", "summary", "content", "tag".
   const inferTag = (txt = '') => {
     const s = (txt || '').toLowerCase();
     if (!s) return 'compliance';
-    if (s.match(/\\b(gst|tax|tds|income tax|taxation)\\b/)) return 'tax';
-    if (s.match(/\\b(labou?r|wage|employee|employment|industrial relations)\\b/)) return 'labor';
-    if (s.match(/\\b(loan|credit|interest|finance|bank|fund|investment)\\b/)) return 'finance';
-    if (s.match(/\\b(scheme|grant|subsidy|benefit|programme|program)\\b/)) return 'schemes';
-    if (s.match(/\\b(license|licence|registration|regulation|compliance|act|rule|law)\\b/)) return 'compliance';
+    if (s.match(/\b(gst|tax|tds|income tax|taxation)\b/)) return 'tax';
+    if (s.match(/\b(labou?r|wage|employee|employment|industrial relations)\b/)) return 'labor';
+    if (s.match(/\b(loan|credit|interest|finance|bank|fund|investment)\b/)) return 'finance';
+    if (s.match(/\b(scheme|grant|subsidy|benefit|programme|program)\b/)) return 'schemes';
+    if (s.match(/\b(license|licence|registration|regulation|compliance|act|rule|law)\b/)) return 'compliance';
     return 'compliance';
   };
 
   if (!allowedTags.includes(data.tag)) {
-    const tryText = ((data.summary || '') + '\\n' + (data.content || '')).trim();
+    const tryText = ((data.summary || '') + '\n' + (data.content || '')).trim();
     data.tag = inferTag(tryText);
   }
   return data;
 }
 
 async function processFeed(feedInfo) {
-  const feed = await parser.parseURL(feedInfo.url);
-  const adminUserId = process.env.ADMIN_USER_ID; // Make sure to set this in .env
+  try {
+    console.log(`Processing feed: ${feedInfo.sourceName}`);
+    const feed = await parser.parseURL(feedInfo.url);
+    console.log(`Found ${feed.items?.length || 0} items in ${feedInfo.sourceName}`);
 
-  for (const item of feed.items || []) {
-    const uniqueId = item.guid || item.link || item.id || item.title;
-    if (!uniqueId) continue;
+    for (const item of feed.items || []) {
+      const uniqueId = item.guid || item.link || item.id || item.title;
+      if (!uniqueId) continue;
 
-    const existing = await Post.findOne({ feedId: uniqueId });
-    if (existing) continue;
+      const existing = await Post.findOne({ feedId: uniqueId });
+      if (existing) continue;
 
-    const generated = await generateArticle(item);
-    // Check for required fields
-    if (
-      !generated.title ||
-      !generated.content ||
-      !generated.summary ||
-      !generated.tag ||
-      generated.content.trim() === '' ||
-      generated.summary.trim() === '' ||
-      generated.title.trim() === '' ||
-      generated.tag.trim() === ''
-    ) {
-      continue; // Skip if any required field is missing or empty
+      const generated = await generateArticle(item);
+      if (
+        !generated.title ||
+        !generated.content ||
+        !generated.summary ||
+        !generated.tag ||
+        generated.content.trim() === '' ||
+        generated.summary.trim() === '' ||
+        generated.title.trim() === '' ||
+        generated.tag.trim() === ''
+      ) {
+        continue; 
+      }
+
+      const contentForEmbed = generated.content.trim();
+      const embedding = await embedText(contentForEmbed);
+
+      const slug = slugify(generated.title || item.title, { 
+        lower: true, 
+        strict: true 
+      });
+
+      if (!slug || slug.trim() === '') continue;
+
+      try {
+        const doc = new Post({
+          feedId: uniqueId,
+          userId: 'ai',
+          title: generated.title,
+          content: generated.content,
+          link: item.link || '',
+          summary: generated.summary,
+          tag: generated.tag,
+          category: generated.tag,
+          generatedAt: new Date(),
+          source: feedInfo.sourceName,
+          embedding,
+          slug,
+          isGenerated: true
+        });
+
+        await doc.save();
+        console.log(`✓ Saved: ${generated.title}`);
+      } catch (error) {
+        if (error.code === 11000) {
+          console.log(`Skipping duplicate: ${generated.title}`);
+          continue;
+        }
+        throw error;
+      }
     }
-
-    const contentForEmbed = generated.content.trim();
-    const embedding = await embedText(contentForEmbed);
-
-    const slug = slugify(generated.title || item.title, { 
-      lower: true, 
-      strict: true 
-    });
-
-    if (!slug || slug.trim() === '') continue;
-
-    const doc = new Post({
-      feedId: uniqueId,
-      userId: 'ai',
-      title: generated.title,
-      content: generated.content,
-      link: item.link || '',
-      summary: generated.summary,
-      tag: generated.tag,
-      category: generated.tag,
-      generatedAt: new Date(),
-      source: feedInfo.sourceName,
-      embedding,
-      slug,
-      isGenerated: true
-    });
-
-    await doc.save();
+  } catch (error) {
+    console.error(`Error processing feed ${feedInfo.sourceName}:`, error.message);
   }
 }
 
 async function processAllFeeds() {
+  console.log('Starting RSS feed processing...');
   for (const feedInfo of rssFeeds) {
     await processFeed(feedInfo);
+    await new Promise(resolve => setTimeout(resolve, 2000));
   }
+  console.log('RSS feed processing complete!');
 }
 
 export { processAllFeeds };
